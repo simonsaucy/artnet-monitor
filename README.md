@@ -118,9 +118,17 @@ The gear menu in the top bar has:
 - **Start monitoring when the app opens** — auto-starts the selected mode on
   launch. With Capture selected that means a password prompt at launch.
 - **Open Art-Net Monitor at login** — registers the app as a login item
-  (`SMAppService`). For this to stick, sign the app with your own Developer ID
-  in Xcode; the ad-hoc signing the project ships with is enough to build and run
-  but login items are unreliable unsigned.
+  (`SMAppService`). This needs a real signing identity, which the project now
+  has: automatic signing, team `T94H6C9572`, signed with
+  `Apple Development: Simon Saucy`.
+
+## Signing
+
+Automatic signing, team `T94H6C9572`. A Development certificate is enough to
+build and run it here and on any Mac in the team's provisioning. It is **not**
+Developer ID, so copying the built `.app` to an unprovisioned Mac still trips
+Gatekeeper — on the Resolume Mac, clone this repo and build it there, or get a
+Developer ID certificate and switch the target over.
 
 ## Regenerating the app icon
 
