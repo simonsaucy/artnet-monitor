@@ -37,6 +37,13 @@ nonisolated struct UniverseSnapshot: Identifiable, Sendable, Equatable {
     var triple: String { "\(net).\(subnet).\(uni)" }
 }
 
+/// A non-DMX opcode seen from a source, already 2-second throttled. The web UI
+/// server drains these and relays them to the drawer as {type:"other"}.
+nonisolated struct OtherOpcodeEvent: Sendable, Equatable {
+    var op: String
+    var from: String
+}
+
 nonisolated struct MonitorStats: Sendable, Equatable {
     var packetsPerSecond: Int = 0
     var universeCount: Int = 0
@@ -97,6 +104,9 @@ nonisolated final class CaptureEngine: @unchecked Sendable {
     private var otherSeen: [String: Double] = [:]
     private var logLines: [String] = []
     private var logVersion = 0
+    private var pendingOther: [OtherOpcodeEvent] = []
+    /// Ceiling so the queue can't grow without bound when nothing drains it.
+    private static let maxPendingOther = 200
 
     private let logFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -181,6 +191,8 @@ nonisolated final class CaptureEngine: @unchecked Sendable {
                 logLines.insert("\(stamp)  \(name)  from \(sourceIP)", at: 0)
                 if logLines.count > Self.maxLogLines { logLines.removeLast() }
                 logVersion += 1
+                pendingOther.append(OtherOpcodeEvent(op: name, from: sourceIP))
+                if pendingOther.count > Self.maxPendingOther { pendingOther.removeFirst() }
             }
             lock.unlock()
         }
@@ -216,6 +228,15 @@ nonisolated final class CaptureEngine: @unchecked Sendable {
         return out
     }
 
+    /// Take the non-DMX opcode events seen since the last call. Only the web UI
+    /// server drains these.
+    func drainOtherEvents() -> [OtherOpcodeEvent] {
+        lock.lock(); defer { lock.unlock() }
+        let out = pendingOther
+        pendingOther.removeAll(keepingCapacity: true)
+        return out
+    }
+
     /// Drop universes that have gone quiet. Call about once a second.
     func reapSilent() {
         let now = monotonicNow()
@@ -244,6 +265,7 @@ nonisolated final class CaptureEngine: @unchecked Sendable {
         universes.removeAll()
         order.removeAll()
         otherSeen.removeAll()
+        pendingOther.removeAll()
         totalPackets = 0
         dmxPackets = 0
         lock.unlock()

@@ -7,7 +7,9 @@
 //  processors (10.0.0.78–82, universes 0–19).
 //
 
+import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 @main
 struct ArtNetMonitorApp: App {
@@ -39,9 +41,37 @@ struct ArtNetMonitorApp: App {
 
                 Divider()
 
+                Toggle("Serve Web UI on \(WebUIServer.defaultPort)",
+                       isOn: Binding(get: { store.serveWebUI },
+                                     set: { store.serveWebUI = $0 }))
+
+                Button("Choose Web UI Page…") { chooseIndexHTML(store: store) }
+
+                Button("Open Web UI in Browser") {
+                    let host = store.webAddresses.first
+                        ?? "http://localhost:\(WebUIServer.defaultPort)"
+                    if let url = URL(string: host) { NSWorkspace.shared.open(url) }
+                }
+                .disabled(!store.webServing)
+
+                Divider()
+
                 Button("Send Test Packets") { store.sendTestPackets() }
                     .keyboardShortcut("t", modifiers: [.command, .shift])
             }
         }
+    }
+}
+
+/// Shared by the menu bar and the gear menu.
+@MainActor
+func chooseIndexHTML(store: MonitorStore) {
+    let panel = NSOpenPanel()
+    panel.title = "Choose the viewer's index.html"
+    panel.allowedContentTypes = [.html]
+    panel.allowsMultipleSelection = false
+    panel.canChooseDirectories = false
+    if panel.runModal() == .OK, let url = panel.url {
+        store.chooseIndexHTML(url)
     }
 }

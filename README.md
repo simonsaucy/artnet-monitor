@@ -137,6 +137,49 @@ The gear menu in the top bar has:
   has: automatic signing, team `T94H6C9572`, signed with
   `Apple Development: Simon Saucy`.
 
+## The web UI (the viewer's Art-Net drawer)
+
+The app serves the same HTTP + Server-Sent Events endpoint `artnet-monitor.js`
+did, so the Art-Net drawer in `index.html` works against it unchanged. It starts
+with monitoring and stops with it.
+
+| Route | What it does |
+|---|---|
+| `GET /events` | SSE stream: `hello`, `dmx`, `stats`, `other`, `gone`, plus a `: ping` every 15 s |
+| `GET /health` | JSON status, same shape as the sidecar's |
+| `GET /` | the `index.html` you choose, or a built-in placeholder page |
+
+Message shapes match the sidecar exactly, because the drawer's JavaScript is
+untouched:
+
+```
+hello  { type, artnetPort, fps, host, interfaces[] }
+dmx    { type, from, universe, net, subnet, uni, seq, len, channels[512] }
+stats  { type, pkts, dmxPkts, pps, universes, clients }
+other  { type, op, from }
+gone   { type, from, universe }
+```
+
+Like the sidecar, `dmx` frames go out at 20 fps and only for universes that
+actually changed, `stats` once a second, and `other` is 2-second throttled per
+opcode per source. On connect the drawer gets `hello` followed by a snapshot of
+every live universe, so it fills instantly.
+
+The app shows the address to type into the drawer under the stat tiles, along
+with the connected viewer count. **Monitor ▸ Open Web UI in Browser** opens it.
+
+### Serving your own index.html
+
+**Monitor ▸ Choose Web UI Page…** and pick the viewer's `index.html`. The choice
+is stored as a security-scoped bookmark rather than a path, because the file
+normally lives under `~/Library/CloudStorage`, which macOS gates behind a
+privacy prompt — a plain path read there can block indefinitely. The page is
+read into memory once, so no request ever waits on the disk.
+
+Without a page chosen, `/` serves a short placeholder; `/events` works either
+way, so you can also open your `index.html` from anywhere and just point the
+drawer's URL field at `http://<this mac>:6455`.
+
 ## Two targets
 
 | Target | Sandbox | Modes | For |

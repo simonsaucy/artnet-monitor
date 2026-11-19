@@ -28,6 +28,13 @@ final class MonitorStore {
     /// outlines keep fading even when no new packets arrive.
     var fadeTick = 0
 
+    /// Web UI (the Art-Net drawer in index.html) server state.
+    var webServing = false
+    var webClients = 0
+    var webError: String?
+    /// Addresses to type into the drawer, e.g. "http://10.0.0.23:6455".
+    var webAddresses: [String] = []
+
     var isRunning: Bool { state.isActive }
 
     var statusText: String {
@@ -56,6 +63,7 @@ final class MonitorStore {
 
     private let engine = CaptureEngine()
     private var source: CaptureSource?
+    private let webServer: WebUIServer
     private var ticker: Task<Void, Never>?
     private var lastLogVersion = -1
     private var lastTotalForPPS = 0
@@ -68,6 +76,7 @@ final class MonitorStore {
     private let testSender = TestPacketSender()
 
     init() {
+        webServer = WebUIServer(engine: engine)
         if let saved = UserDefaults.standard.string(forKey: "captureMode"),
            let restored = CaptureMode(rawValue: saved) {
             mode = restored
@@ -111,12 +120,16 @@ final class MonitorStore {
         source = newSource
         newSource.start()
         state = newSource.state
+        startWebServerIfWanted()
         startTicker()
     }
 
     func stop() {
         source?.stop()
         source = nil
+        webServer.stop()
+        webServing = false
+        webClients = 0
         ticker?.cancel()
         ticker = nil
         state = .idle
@@ -133,6 +146,90 @@ final class MonitorStore {
         guard UserDefaults.standard.bool(forKey: "startOnLaunch") else { return }
         engine.log("start on launch is on — starting \(mode.title.lowercased()) mode")
         start()
+    }
+
+    // MARK: Web UI server
+
+    var serveWebUI: Bool {
+        get { UserDefaults.standard.object(forKey: "serveWebUI") as? Bool ?? true }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "serveWebUI")
+            if newValue {
+                if isRunning { startWebServerIfWanted() }
+            } else {
+                webServer.stop()
+                webServing = false
+                webClients = 0
+            }
+        }
+    }
+
+    /// Display name of the index.html being served at "/", if any.
+    var indexHTMLName: String?
+
+    /// Remember the user's pick as a security-scoped bookmark. A plain path is
+    /// not enough: the viewer's index.html normally lives under
+    /// ~/Library/CloudStorage, which macOS gates behind a privacy prompt, and a
+    /// cold read there can block for a long time.
+    func chooseIndexHTML(_ url: URL) {
+        do {
+            let bookmark = try url.bookmarkData(options: .withSecurityScope,
+                                                includingResourceValuesForKeys: nil,
+                                                relativeTo: nil)
+            UserDefaults.standard.set(bookmark, forKey: "indexHTMLBookmark")
+            loadIndexHTML()
+        } catch {
+            engine.log("web UI: could not remember that file — \(error.localizedDescription)")
+        }
+    }
+
+    func clearIndexHTML() {
+        UserDefaults.standard.removeObject(forKey: "indexHTMLBookmark")
+        indexHTMLName = nil
+        webServer.setIndexHTML(nil, name: nil)
+        engine.log("web UI: no index.html chosen — serving the built-in page")
+    }
+
+    /// Resolve the bookmark and read the page into memory, once.
+    private func loadIndexHTML() {
+        guard let bookmark = UserDefaults.standard.data(forKey: "indexHTMLBookmark") else {
+            indexHTMLName = nil
+            webServer.setIndexHTML(nil, name: nil)
+            return
+        }
+        var stale = false
+        do {
+            let url = try URL(resolvingBookmarkData: bookmark,
+                              options: .withSecurityScope,
+                              relativeTo: nil,
+                              bookmarkDataIsStale: &stale)
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            let data = try Data(contentsOf: url)
+            indexHTMLName = url.lastPathComponent
+            webServer.setIndexHTML(data, name: url.lastPathComponent)
+            engine.log("web UI: serving \(url.lastPathComponent) "
+                       + "(\(data.count / 1024) KB) at /")
+            if stale {
+                let fresh = try url.bookmarkData(options: .withSecurityScope,
+                                                 includingResourceValuesForKeys: nil,
+                                                 relativeTo: nil)
+                UserDefaults.standard.set(fresh, forKey: "indexHTMLBookmark")
+            }
+        } catch {
+            indexHTMLName = nil
+            webServer.setIndexHTML(nil, name: nil)
+            engine.log("web UI: could not read the chosen index.html — "
+                       + "\(error.localizedDescription)")
+        }
+    }
+
+    private func startWebServerIfWanted() {
+        guard serveWebUI else { return }
+        loadIndexHTML()
+        webServer.start()
+        webAddresses = WebUIServer.localAddresses()
+            .map { "http://\($0.address):\(WebUIServer.defaultPort)" }
     }
 
     func sendTestPackets() {
@@ -206,6 +303,19 @@ final class MonitorStore {
         if snapshot.logVersion != lastLogVersion {
             lastLogVersion = snapshot.logVersion
             logLines = snapshot.log
+        }
+
+        switch webServer.state {
+        case .running:
+            if !webServing { webServing = true }
+            if webError != nil { webError = nil }
+            let count = webServer.clientCount
+            if count != webClients { webClients = count }
+        case .failed(let message):
+            if webServing { webServing = false }
+            if webError != message { webError = message }
+        case .idle, .starting:
+            if webServing { webServing = false }
         }
 
         if let source {

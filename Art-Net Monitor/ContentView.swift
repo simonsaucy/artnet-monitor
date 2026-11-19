@@ -6,7 +6,9 @@
 //  overrides the pure-black Cueline look.
 //
 
+import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ContentView: View {
 
@@ -92,6 +94,17 @@ struct ContentView: View {
                 get: { store.opensAtLogin },
                 set: { store.setOpensAtLogin($0) }))
             Divider()
+            Toggle("Serve the web UI on port \(WebUIServer.defaultPort)", isOn: Binding(
+                get: { store.serveWebUI },
+                set: { store.serveWebUI = $0 }))
+            Button(store.indexHTMLName.map { "Change index.html (\($0))…" }
+                   ?? "Choose index.html to serve…") {
+                chooseIndexHTML(store: store)
+            }
+            if store.indexHTMLName != nil {
+                Button("Stop serving index.html") { store.clearIndexHTML() }
+            }
+            Divider()
             Button("Send test packets to 127.0.0.1") { store.sendTestPackets() }
         } label: {
             Image(systemName: "gearshape")
@@ -112,6 +125,8 @@ struct ContentView: View {
     private func content(for mode: UniverseViewMode) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             statTiles
+
+            webStatus
 
             HStack(spacing: 8) {
                 CueSegmented(options: UniverseViewMode.allCases.map {
@@ -134,6 +149,43 @@ struct ContentView: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    /// Tells you exactly what to type into the viewer's Art-Net drawer.
+    @ViewBuilder
+    private var webStatus: some View {
+        if let error = store.webError {
+            label(icon: "exclamationmark.triangle", tint: Cue.red, text: error)
+        } else if store.webServing {
+            let addresses = store.webAddresses.isEmpty
+                ? ["http://localhost:\(WebUIServer.defaultPort)"] : store.webAddresses
+            label(icon: "globe",
+                  tint: store.webClients > 0 ? Cue.green : Cue.teal,
+                  text: "Web UI · " + addresses.joined(separator: "  ")
+                        + " · \(store.webClients) viewer\(store.webClients == 1 ? "" : "s")")
+        } else if store.isRunning && !store.serveWebUI {
+            label(icon: "globe", tint: Cue.textQuaternary, text: "Web UI off")
+        }
+    }
+
+    private func label(icon: String, tint: Color, text: String) -> some View {
+        HStack(spacing: 7) {
+            Image(systemName: icon)
+                .font(.system(size: 10.5, weight: .medium))
+                .foregroundStyle(tint)
+            Text(text)
+                .font(Cue.mono(10.5))
+                .foregroundStyle(Cue.textSecondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .textSelection(.enabled)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Cue.bgSecondary, in: RoundedRectangle(cornerRadius: Cue.radiusMedium,
+                                                          style: .continuous))
     }
 
     private var statTiles: some View {

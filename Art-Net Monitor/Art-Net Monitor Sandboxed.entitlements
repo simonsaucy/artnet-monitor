@@ -15,5 +15,8 @@
 	<!-- Outbound, for the built-in test packet sender. -->
 	<key>com.apple.security.network.client</key>
 	<true/>
+	<!-- So the user can pick the viewer's index.html to serve at "/". -->
+	<key>com.apple.security.files.user-selected.read-only</key>
+	<true/>
 </dict>
 </plist>
