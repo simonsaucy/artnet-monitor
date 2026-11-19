@@ -22,7 +22,7 @@ final class MonitorStore {
     var universes: [UniverseSnapshot] = []
     var stats = MonitorStats()
     var logLines: [String] = []
-    var mode: CaptureMode = .capture
+    var mode: CaptureMode = .preferred
     var state: CaptureState = .idle
     /// Bumped about four times a second so the text view's "just changed"
     /// outlines keep fading even when no new packets arrive.
@@ -33,7 +33,7 @@ final class MonitorStore {
     var statusText: String {
         switch state {
         case .idle: return "Idle"
-        case .starting: return mode == .capture ? "Authorizing…" : "Starting…"
+        case .starting: return mode.startingText
         case .running:
             if stats.packetsPerSecond > 0 { return "Live · \(mode.title)" }
             return "Waiting for packets · \(mode.title)"
@@ -107,10 +107,7 @@ final class MonitorStore {
         lastTotalForPPS = 0
         lastPPSTime = monotonicNow()
 
-        let newSource: CaptureSource = switch mode {
-        case .capture: PktapCapture(engine: engine)
-        case .listen: UDPListener(engine: engine)
-        }
+        let newSource = mode.makeSource(engine: engine)
         source = newSource
         newSource.start()
         state = newSource.state

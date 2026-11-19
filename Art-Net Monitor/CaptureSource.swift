@@ -5,27 +5,71 @@
 
 import Foundation
 
+/// Capture is compiled out of the sandboxed TestFlight build: the App Sandbox
+/// forbids running tcpdump as root, so only the plain UDP socket survives there.
+/// Nothing outside this enum names `.capture` directly, so the rest of the app
+/// compiles unchanged either way.
 nonisolated enum CaptureMode: String, CaseIterable, Sendable, Identifiable {
+#if !SANDBOXED
     case capture
+#endif
     case listen
+
+    /// The mode a fresh install starts on.
+    static var preferred: CaptureMode { allCases[0] }
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
+#if !SANDBOXED
         case .capture: return "Capture"
+#endif
         case .listen: return "Listen"
         }
     }
 
     var blurb: String {
         switch self {
+#if !SANDBOXED
         case .capture:
             return "tcpdump on pktap — sees everything, including Resolume's own "
                  + "unicast output to the pixel processors, and never takes UDP 6454."
+#endif
         case .listen:
             return "Plain UDP socket on 0.0.0.0:6454. Shares the port, but macOS "
-                 + "hands unicast to only one socket — may miss unicast traffic."
+                 + "hands unicast to only one socket, so Resolume's unicast to the "
+                 + "pixel processors will not show up — only broadcast Art-Net."
+        }
+    }
+
+    /// Shown under the view toggle.
+    var footerLabel: String {
+        switch self {
+#if !SANDBOXED
+        case .capture: return "pktap · tcpdump"
+#endif
+        case .listen: return "udp 6454 · shared"
+        }
+    }
+
+    /// Status text while the source is coming up.
+    var startingText: String {
+        switch self {
+#if !SANDBOXED
+        case .capture: return "Authorizing…"
+#endif
+        case .listen: return "Starting…"
+        }
+    }
+
+    /// Builds the capture source for this mode.
+    func makeSource(engine: CaptureEngine) -> CaptureSource {
+        switch self {
+#if !SANDBOXED
+        case .capture: return PktapCapture(engine: engine)
+#endif
+        case .listen: return UDPListener(engine: engine)
         }
     }
 }

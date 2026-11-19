@@ -122,6 +122,54 @@ The gear menu in the top bar has:
   has: automatic signing, team `T94H6C9572`, signed with
   `Apple Development: Simon Saucy`.
 
+## Two targets
+
+| Target | Sandbox | Modes | For |
+|---|---|---|---|
+| **Art-Net Monitor** | off | Capture + Listen | the Resolume Mac — the real tool |
+| **Art-Net Monitor Listen** | on | Listen only | TestFlight / Mac App Store |
+
+The TestFlight target exists because App Store Connect rejects non-sandboxed
+macOS uploads with `ITMS-90296: App Sandbox not enabled`, and that check runs on
+the upload itself — internal-only testing does not get an exemption. Under the
+sandbox, running tcpdump as root is forbidden (App Review guideline 2.4.5(v):
+"They may not request escalation to root privileges"), so Capture mode is
+compiled out of that target via the `SANDBOXED` condition and the mode picker
+hides itself when only one mode is available.
+
+**What the Listen-only build can and cannot see.** It receives broadcast
+Art-Net. It cannot see Resolume's unicast to the pixel processors — macOS hands
+a unicast datagram on a shared port to exactly one socket, and Resolume's DMX
+input wins. So it is useful for watching a console that broadcasts, and useless
+for watching Resolume's pixel output. Use the full target for that.
+
+Also note TestFlight builds expire 90 days after upload.
+
+### Building each
+
+```bash
+xcodebuild -scheme "Art-Net Monitor"        -configuration Release build   # full
+xcodebuild -scheme "Art-Net Monitor Listen" -configuration Release build   # sandboxed
+```
+
+### Getting the Listen build onto TestFlight
+
+These steps need the Apple Developer portal, so they are yours to do:
+
+1. Register the App ID `com.thecrossing.artnet-monitor.listen`
+   (Certificates, Identifiers & Profiles > Identifiers).
+2. Create an **Apple Distribution** certificate if you do not have one.
+3. Create the app record in App Store Connect using that bundle ID.
+4. In Xcode pick the **Art-Net Monitor Listen** scheme, Product > Archive, then
+   Distribute App > **TestFlight (Internal Only)**.
+5. Add yourself and your machines as internal testers.
+
+If certificate creation fails with *"This operation can only be performed by the
+Account Holder"* on an individual membership — where you are the Account Holder —
+check <https://developer.apple.com/account> for a pending Apple Developer Program
+License Agreement and accept it, then sign out and back in under
+Xcode > Settings > Accounts.
+
 ## Signing
 
 Automatic signing, team `T94H6C9572`. A Development certificate is enough to

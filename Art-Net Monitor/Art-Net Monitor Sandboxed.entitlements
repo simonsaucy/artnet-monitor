@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- TestFlight / Mac App Store build. The sandbox is mandatory here:
+	     uploads without it are rejected with ITMS-90296. Capture mode is
+	     compiled out (SANDBOXED), because the sandbox forbids running tcpdump
+	     as root. Listen mode only, so broadcast Art-Net but not Resolume's
+	     unicast to the pixel processors. -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<!-- Bind and receive on UDP 6454. -->
+	<key>com.apple.security.network.server</key>
+	<true/>
+	<!-- Outbound, for the built-in test packet sender. -->
+	<key>com.apple.security.network.client</key>
+	<true/>
+</dict>
+</plist>

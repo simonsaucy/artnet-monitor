@@ -62,9 +62,11 @@ struct ContentView: View {
             }
             .fixedSize()
 
-            CueSegmented(options: CaptureMode.allCases.map {
-                (value: $0, title: $0.title, help: $0.blurb)
-            }, selection: modeBinding)
+            if CaptureMode.allCases.count > 1 {
+                CueSegmented(options: CaptureMode.allCases.map {
+                    (value: $0, title: $0.title, help: $0.blurb)
+                }, selection: modeBinding)
+            }
 
             Button(store.isRunning ? "Stop" : "Start") {
                 store.toggle()
@@ -119,7 +121,7 @@ struct ContentView: View {
                                        : "Every channel above zero, as text")
                 }, selection: viewModeBinding)
                 Spacer(minLength: 0)
-                Text(store.mode == .capture ? "pktap · tcpdump" : "udp 6454 · shared")
+                Text(store.mode.footerLabel)
                     .font(Cue.mono(10.5))
                     .foregroundStyle(Cue.textQuaternary)
                     .lineLimit(1)

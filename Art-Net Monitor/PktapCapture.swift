@@ -14,6 +14,8 @@
 //  we create ourselves and read on a background thread.
 //
 
+#if !SANDBOXED
+
 import Foundation
 
 nonisolated final class PktapCapture: CaptureSource, @unchecked Sendable {
@@ -298,3 +300,5 @@ nonisolated struct TcpdumpTextParser {
         return address.isEmpty ? nil : String(address)
     }
 }
+
+#endif  // !SANDBOXED

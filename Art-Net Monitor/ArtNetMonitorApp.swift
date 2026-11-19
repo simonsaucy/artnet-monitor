@@ -28,10 +28,12 @@ struct ArtNetMonitorApp: App {
                 }
                 .keyboardShortcut("r", modifiers: [.command])
 
-                Picker("Mode", selection: Binding(get: { store.mode },
-                                                  set: { store.setMode($0) })) {
-                    ForEach(CaptureMode.allCases) { mode in
-                        Text(mode.title).tag(mode)
+                if CaptureMode.allCases.count > 1 {
+                    Picker("Mode", selection: Binding(get: { store.mode },
+                                                      set: { store.setMode($0) })) {
+                        ForEach(CaptureMode.allCases) { mode in
+                            Text(mode.title).tag(mode)
+                        }
                     }
                 }
 
