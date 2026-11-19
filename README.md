@@ -84,6 +84,21 @@ node Tools/send-test-packets.js              # 127.0.0.1 for 5 seconds
 node Tools/send-test-packets.js 10.0.0.23 20 # another Mac, 20 seconds
 ```
 
+### Testing on a live network without touching fixtures
+
+`Tools/send-test-packets.js` sends real levels on universes 0, 1 and 21 — and
+0-19 are the Pixel Stix universes, so do **not** broadcast it on the lighting
+network. Use the safe probe instead, which sends universe 999 with all 512
+channels held at zero plus a non-soliciting ArtPoll:
+
+```bash
+node Tools/safe-broadcast-test.js 192.168.111.255 4   # your subnet broadcast
+```
+
+Nothing can light up from that, and it is enough to prove the monitor is
+receiving. Verified working against the sandboxed build: universe 999 appeared
+as `3.14.7` with 0 active channels.
+
 Capture mode will **not** see loopback traffic — pktap doesn't carry it. Point
 the script at the Mac's LAN address from another machine to exercise Capture.
 
